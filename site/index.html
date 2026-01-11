@@ -3,36 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام عرض الفرص - ثابت</title>
+    <title>نظام عرض الفرص - متصل بقاعدة البيانات</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
         body {
             font-family: 'Tajawal', sans-serif;
             overflow: hidden;
             touch-action: pan-y;
+            transition: all 0.5s ease;
         }
 
-        /* --- تأثير كين بيرنز للخلفيات --- */
+        /* --- Animations --- */
         @keyframes kenBurns {
             0% { transform: scale(1) translate(0, 0); }
             100% { transform: scale(1.15) translate(-2%, -2%); }
         }
 
-        /* --- وميض الباركود --- */
-        @keyframes barcodePulse {
-            0% { box-shadow: 0 0 0 0 rgba(0, 107, 61, 0.4); border-color: #006b3d; }
-            50% { box-shadow: 0 0 0 10px rgba(0, 107, 61, 0); border-color: #c89d3c; }
-            100% { box-shadow: 0 0 0 0 rgba(0, 107, 61, 0); border-color: #006b3d; }
-        }
-
-        .barcode-glow {
-            animation: barcodePulse 2s infinite ease-in-out;
-        }
-
-        /* --- Slider Styling --- */
         .slider-track {
             display: flex;
             height: 100%;
@@ -54,7 +44,6 @@
             user-select: none;
         }
 
-        /* خلفيات مستقلة للحركة */
         .slide-bg-container {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -63,343 +52,674 @@
             background-position: center;
         }
         
-        /* تفعيل حركة الخلفية فقط عند النشاط */
         .slide.active .slide-bg-container {
-            animation: kenBurns 10s ease-out forwards;
+            animation: kenBurns 15s ease-out forwards;
         }
 
-        .bg-img-1 { background-image: linear-gradient(rgba(0,107,61,0.85), rgba(0,77,44,0.9)), url('https://images.unsplash.com/photo-1625246333195-78d9c38ad449?q=80&w=1770&auto=format&fit=crop'); }
-        .bg-img-2 { background-image: linear-gradient(rgba(255,255,255,0.95), rgba(255,255,255,0.9)), url('https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1770&auto=format&fit=crop'); }
-        .bg-white-pure { background-color: #ffffff; }
-        .bg-gray-light { background-color: #f8fafc; }
-
-
-        /* --- عناصر واجهة المستخدم --- */
-        .btn-gold {
-            background: #c89d3c;
-            transition: all 0.3s ease;
-        }
-        .btn-gold:hover {
-            background: #b08a34;
-            transform: scale(1.05);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-        }
-
-        .step-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            padding: 0.75rem;
-            border-radius: 0.75rem;
-            transition: all 0.3s ease;
+        /* --- Showcase Board --- */
+        .showcase-container {
+            width: 100%;
+            height: 100%;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .step-card:hover {
-            border-color: #c89d3c;
-            transform: translateY(-3px);
-            box-shadow: 0 8px 12px rgba(0,0,0,0.1);
+            gap: 2rem;
+            transition: all 0.5s ease;
         }
 
-        .step-icon-box {
-            background: #f0fdf4;
-            color: #006b3d;
+        .steps-viewer {
+            flex: 1.2;
+            height: 85%;
+            background: #f8fafc;
+            border-radius: 2rem;
+            border: 10px solid #006b3d;
+            position: relative;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+            overflow: hidden;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .viewer-track {
+            display: flex;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .step-image-item {
+            min-width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: white;
+        }
+
+        .step-nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 107, 61, 0.8);
+            color: white;
             width: 40px;
             height: 40px;
-            border-radius: 0.5rem;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            flex-shrink: 0;
+            cursor: pointer;
+            z-index: 40;
+            transition: all 0.3s;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .step-nav-btn:hover { background: #c89d3c; transform: translateY(-50%) scale(1.1); }
+        .btn-next { left: 15px; }
+        .btn-prev { right: 15px; }
+
+        .indicator-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .indicator-dot.active {
+            background: #c89d3c !important;
+            transform: scale(1.3);
+            box-shadow: 0 0 10px rgba(200, 157, 60, 0.3);
         }
 
-        /* تأثير الظهور التدريجي للعناصر (Fade) */
-        .fade-target { opacity: 0; transition: opacity 0.8s ease-in-out; }
-        .fade-target.visible { opacity: 1; }
+        .step-text-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 1.5rem;
+            border-right: 4px solid #c89d3c;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            transition: all 0.4s ease;
+        }
 
+        /* --- Fullscreen Customization --- */
+        .full-screen-top #bottomSection { display: none !important; }
+        .full-screen-top #sliderContainer { height: 100vh !important; }
+
+        .full-screen-opps #bottomSection { display: none !important; }
+        .full-screen-opps #sliderContainer { height: 100vh !important; }
+        .full-screen-opps .slider-nav-dots { display: none !important; }
+
+        .full-screen-top .fs-menu-wrapper,
+        .full-screen-top .refresh-btn-wrapper,
+        .full-screen-opps .fs-menu-wrapper,
+        .full-screen-opps .refresh-btn-wrapper,
+        .full-screen-bottom .fs-menu-wrapper,
+        .full-screen-bottom .refresh-btn-wrapper,
+        .full-screen-page .fs-menu-wrapper,
+        .full-screen-page .refresh-btn-wrapper {
+            display: none !important;
+        }
+
+        .full-screen-bottom #sliderContainer { display: none !important; }
+        .full-screen-bottom #bottomSection { height: 100vh !important; background: white; }
+        
+        .full-screen-bottom .steps-content-panel { flex: 0.6; }
+        .full-screen-bottom .steps-viewer { flex: 1.4; height: 90%; }
+        .full-screen-bottom .showcase-container { gap: 2rem; height: 100vh; padding: 2rem; }
+
+        .exit-fs-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(220, 38, 38, 0.9);
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .full-screen-bottom .exit-fs-btn, 
+        .full-screen-top .exit-fs-btn,
+        .full-screen-opps .exit-fs-btn,
+        .full-screen-page .exit-fs-btn {
+            display: flex;
+        }
+        .exit-fs-btn:hover { background: #b91c1c; transform: scale(1.1); }
+
+        /* --- Controls --- */
+        .scroll-controls {
+            position: absolute;
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 10px;
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border: 1px solid rgba(0, 107, 61, 0.2);
+            z-index: 100;
+        }
+
+        .control-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #006b3d;
+            background: #f0fdf4;
+            transition: all 0.2s;
+            border: 1px solid rgba(0, 107, 61, 0.1);
+        }
+        
+        .control-btn.btn-active { background: #006b3d; color: white; }
+
+        .fs-menu-wrapper { position: fixed; top: 1rem; left: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; }
+        .refresh-btn-wrapper { position: fixed; bottom: 1rem; left: 1rem; z-index: 9999; }
+
+        .global-fullscreen-btn, .global-refresh-btn {
+            background: rgba(0, 107, 61, 0.85);
+            backdrop-filter: blur(8px);
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .fs-options {
+            display: none;
+            background: white;
+            border-radius: 1rem;
+            padding: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            flex-direction: column;
+            min-width: 180px;
+        }
+
+        .opp-counter-inline {
+            background: #c89d3c;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 800;
+            margin-right: 8px;
+        }
+
+        .barcode-glow { animation: barcodePulse 2s infinite ease-in-out; }
+        @keyframes barcodePulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(0, 107, 61, 0.4); }
+            50% { box-shadow: 0 0 0 10px rgba(0, 107, 61, 0); }
+        }
+
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin-custom { animation: spin 1s linear infinite; }
+
+        .opp-card {
+            background: white;
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            border: 1px solid #f1f5f9;
+            margin-bottom: 1.5rem;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .opp-card:hover { transform: translateY(-5px); border-color: #006b3d; }
+        
+        .opp-number-badge {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            background: #c89d3c;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 14px;
+            box-shadow: 0 4px 10px rgba(200, 157, 60, 0.4);
+            z-index: 10;
+            border: 2px solid white;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .status-bidding { background: #dcfce7; color: #166534; }
+        .status-awarding { background: #fef9c3; color: #854d0e; }
     </style>
 </head>
 <body class="h-screen w-screen flex flex-col bg-white">
 
-    <!-- القسم العلوي: شرائح متحركة (50%) -->
-    <div id="sliderContainer" class="h-1/2 relative overflow-hidden bg-gray-100 group cursor-grab active:cursor-grabbing">
-        <div class="slider-track" id="sliderTrack">
-            
-            <!-- الشريحة 1 -->
-            <div class="slide text-white text-center">
-                <div class="slide-bg-container bg-img-1"></div>
-                <div class="max-w-4xl">
-                    <h2 class="text-3xl md:text-5xl font-extrabold mb-6 leading-tight min-h-[120px] flex flex-col items-center justify-center">
-                        الفرص الاستثمارية في قطاعات الأمن الغذائي
-                        <span class="text-[#c89d3c] block mt-2 text-4xl">محافظة شمال الشرقية – سلطنة عُمان</span>
-                    </h2>
-                    <p class="text-xl md:text-2xl font-light opacity-90 border-t border-white/20 pt-6 mt-2 min-h-[80px]">
-                        نحو استثمار مستدام يعزز الأمن الغذائي وفرص واعدة في جميع ولايات محافظة شمال الشرقية
-                    </p>
-                </div>
-            </div>
-
-            <!-- الشريحة 2 -->
-            <div class="slide text-gray-800">
-                <div class="slide-bg-container bg-img-2"></div>
-                <div class="max-w-4xl text-center bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-xl border-r-8 border-[#006b3d]">
-                    <h2 class="text-3xl font-bold text-[#006b3d] mb-6 flex items-center justify-center gap-2">
-                        <i data-lucide="info" class="w-8 h-8"></i>
-                        مقدمة
-                    </h2>
-                    <p class="text-xl leading-relaxed text-gray-700 min-h-[150px]">
-                        تعلن <strong>وزارة الثروة الزراعية والسمكية وموارد المياه</strong> وبالتنسيق مع <strong>وزارة الإسكان والتخطيط العمراني</strong> عن طرح فرص استثمارية متنوعة في مشاريع الأمن الغذائي بمحافظة شمال الشرقية، بهدف تعزيز الإنتاج المحلي وتحقيق الاستدامة الاقتصادية، وذلك عبر <strong>منصة تطوير</strong>.
-                    </p>
-                </div>
-            </div>
-
-            <!-- الشريحة 3 -->
-            <div class="slide">
-                <div class="slide-bg-container bg-gray-light"></div>
-                <div class="container max-w-6xl mx-auto h-full flex flex-col justify-center">
-                    <h2 class="text-3xl font-bold text-[#006b3d] text-center mb-8 h-[40px]">
-                        القطاعات الاستثمارية
-                    </h2>
-                    
-                    <div class="grid grid-cols-4 gap-4 text-center">
-                        <div class="fade-target bg-white p-4 rounded-xl shadow-sm border-b-4 border-green-500" style="transition-delay: 500ms">
-                            <div class="bg-green-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <i data-lucide="sprout" class="w-6 h-6 text-green-600"></i>
-                            </div>
-                            <h3 class="font-bold text-lg mb-1">مشاريع زراعية</h3>
-                            <p class="text-sm text-gray-500">لمحاصيل متنوعة</p>
-                        </div>
-                        <div class="fade-target bg-white p-4 rounded-xl shadow-sm border-b-4 border-amber-500" style="transition-delay: 800ms">
-                            <div class="bg-amber-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <i data-lucide="beef" class="w-6 h-6 text-amber-600"></i>
-                            </div>
-                            <h3 class="font-bold text-lg mb-1">الإنتاج الحيواني</h3>
-                            <p class="text-sm text-gray-500">لإنتاج اللحوم والحليب</p>
-                        </div>
-                        <div class="fade-target bg-white p-4 rounded-xl shadow-sm border-b-4 border-blue-500" style="transition-delay: 1100ms">
-                            <div class="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <i data-lucide="waves" class="w-6 h-6 text-blue-600"></i>
-                            </div>
-                            <h3 class="font-bold text-lg mb-1">الثروة السمكية</h3>
-                            <p class="text-sm text-gray-500">مشاريع الأمن الغذائي</p>
-                        </div>
-                        <div class="fade-target bg-white p-4 rounded-xl shadow-sm border-b-4 border-purple-500" style="transition-delay: 1400ms">
-                            <div class="bg-purple-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <i data-lucide="package" class="w-6 h-6 text-purple-600"></i>
-                            </div>
-                            <h3 class="font-bold text-lg mb-1">التصنيع والتخزين</h3>
-                            <p class="text-sm text-gray-500">التعبئة والتخزين المبرد</p>
-                        </div>
-                    </div>
-                    <div class="mt-6 text-center fade-target" style="transition-delay: 1700ms">
-                        <span class="inline-block bg-[#006b3d]/10 text-[#006b3d] px-4 py-2 rounded-full font-bold text-sm">
-                            <i data-lucide="map-pin" class="inline w-4 h-4 ml-1"></i>
-                            نطاق الفرص: جميع ولايات محافظة شمال الشرقية
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- الشريحة 4 -->
-            <div class="slide">
-                <div class="slide-bg-container bg-white-pure"></div>
-                <div class="max-w-4xl w-full text-center">
-                    <h2 class="text-3xl font-bold text-[#006b3d] mb-10 h-[40px]">
-                        الجهات المشرفة
-                    </h2>
-                    <div class="flex flex-col md:flex-row justify-center gap-8">
-                        <div class="fade-target bg-gray-50 p-8 rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col items-center justify-center" style="transition-delay: 500ms">
-                            <i data-lucide="landmark" class="w-16 h-16 text-[#006b3d] mb-4"></i>
-                            <h3 class="font-bold text-xl text-gray-800">وزارة الثروة الزراعية<br>والسمكية وموارد المياه</h3>
-                        </div>
-                        <div class="fade-target bg-gray-50 p-8 rounded-2xl border border-gray-200 shadow-sm flex-1 flex flex-col items-center justify-center" style="transition-delay: 1000ms">
-                            <i data-lucide="building-2" class="w-16 h-16 text-[#006b3d] mb-4"></i>
-                            <h3 class="font-bold text-xl text-gray-800">وزارة الإسكان<br>والتخطيط العمراني</h3>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- أزرار التنقل -->
-        <div class="absolute bottom-6 left-0 right-0 flex justify-center space-x-2 space-x-reverse z-10 pointer-events-auto">
-            <button onclick="goToSlide(0)" class="w-3 h-3 rounded-full bg-black/20 hover:bg-black/50 transition-colors dot-indicator"></button>
-            <button onclick="goToSlide(1)" class="w-3 h-3 rounded-full bg-black/20 hover:bg-black/50 transition-colors dot-indicator"></button>
-            <button onclick="goToSlide(2)" class="w-3 h-3 rounded-full bg-black/20 hover:bg-black/50 transition-colors dot-indicator"></button>
-            <button onclick="goToSlide(3)" class="w-3 h-3 rounded-full bg-black/20 hover:bg-black/50 transition-colors dot-indicator"></button>
+    <!-- قائمة ملء الشاشة الثابتة -->
+    <div class="fs-menu-wrapper">
+        <button class="global-fullscreen-btn" id="fsMenuToggle" onclick="toggleFSMenu()" title="خيارات ملء الشاشة">
+            <i data-lucide="maximize" class="w-5 h-5"></i>
+        </button>
+        <div id="fsOptions" class="fs-options">
+            <button class="fs-option-btn flex items-center gap-3 p-3 hover:bg-gray-100 rounded-lg w-full text-right" onclick="controls.toggleFullScreen('full-page')">
+                <i data-lucide="monitor" class="w-4 h-4 text-[#c89d3c]"></i> كامل الصفحة
+            </button>
+            <button class="fs-option-btn flex items-center gap-3 p-3 hover:bg-gray-100 rounded-lg w-full text-right" onclick="controls.toggleFullScreen('top-only')">
+                <i data-lucide="layout-template" class="w-4 h-4 text-[#c89d3c]"></i> القسم العلوي (كل الشرائح)
+            </button>
+            <button class="fs-option-btn flex items-center gap-3 p-3 hover:bg-gray-100 rounded-lg w-full text-right" onclick="controls.toggleFullScreen('bottom-only')">
+                <i data-lucide="layout" class="w-4 h-4 text-[#c89d3c]"></i> القسم السفلي بالكامل
+            </button>
         </div>
     </div>
 
-    <!-- القسم السفلي: محتوى ثابت (50%) -->
-    <div class="h-1/2 bg-white flex flex-col items-center justify-center relative shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-20">
+    <!-- زر تحديث النظام -->
+    <div class="refresh-btn-wrapper">
+        <button class="global-refresh-btn" id="btn-refresh-db" onclick="controls.refreshFromDB()" title="تحديث النظام">
+            <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+        </button>
+    </div>
+
+    <!-- زر الخروج العام -->
+    <div class="exit-fs-btn" id="exitFullScreenBtn" onclick="controls.exitFullScreen()" title="خروج من ملء الشاشة">
+        <i data-lucide="x" class="w-8 h-8"></i>
+    </div>
+
+    <!-- القسم العلوي -->
+    <div id="sliderContainer" class="h-1/2 relative overflow-hidden bg-gray-100 group">
+        <div class="slider-track" id="sliderTrack">
+            <!-- الشريحة 1 -->
+            <div class="slide text-white text-center" id="slide-hero">
+                <div class="slide-bg-container"></div>
+                <div class="max-w-4xl content-wrapper"></div>
+            </div>
+            <!-- الشريحة 2 -->
+            <div class="slide text-gray-800" id="slide-intro">
+                <div class="slide-bg-container" style="background-image: linear-gradient(rgba(255,255,255,0.95), rgba(255,255,255,0.9)), url('https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=1770&auto=format&fit=crop');"></div>
+                <div class="max-w-4xl text-center bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-xl border-r-8 border-[#006b3d] content-wrapper"></div>
+            </div>
+            <!-- الشريحة 3 -->
+            <div class="slide" id="slide-sectors">
+                <div class="slide-bg-container bg-gray-50"></div>
+                <div class="container max-w-6xl mx-auto h-full flex flex-col justify-center">
+                    <h2 class="text-3xl font-bold text-[#006b3d] text-center mb-8 h-[40px]">القطاعات الاستثمارية</h2>
+                    <div class="grid grid-cols-4 gap-4 text-center" id="sectors-grid"></div>
+                </div>
+            </div>
+            <!-- الشريحة 4: الجهات المشرفة -->
+            <div class="slide" id="slide-supervisors">
+                <div class="slide-bg-container bg-white"></div>
+                <div class="max-w-5xl w-full text-center px-10">
+                    <h2 class="text-4xl font-extrabold text-[#006b3d] mb-12 h-[40px]">الجهات المشرفة</h2>
+                    <div class="flex flex-col md:flex-row justify-center items-center gap-10" id="supervisors-container"></div>
+                </div>
+            </div>
+            <!-- الشريحة 5 -->
+            <div class="slide items-start justify-start pt-10 relative" id="slide-opportunities">
+                <div class="slide-bg-container bg-gray-50"></div>
+                <div class="container max-w-4xl mx-auto h-full relative overflow-hidden">
+                    <div class="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-gray-50 via-gray-50 to-transparent pb-8 pt-2 text-center flex items-center justify-center flex-col">
+                        <h2 class="text-3xl font-bold text-[#006b3d] flex items-center justify-center gap-2">
+                            <i data-lucide="trending-up" class="w-8 h-8"></i>
+                            الفرص الاستثمارية المطروحة
+                            <span id="opp-count-display" class="opp-counter-inline">0</span>
+                        </h2>
+                    </div>
+                    <div id="scrolling-content" class="absolute top-32 left-0 right-0 px-4 pb-48" style="will-change: transform;"></div>
+                </div>
+
+                <div class="scroll-controls">
+                    <button class="control-btn" onclick="controls.toggleFullScreen('opps-only')" data-label="ملء شاشة الفرص">
+                        <i data-lucide="screen-share" class="w-5 h-5 text-[#c89d3c]"></i>
+                    </button>
+                    <button class="control-btn" onclick="controls.reset()" data-label="إعادة">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </button>
+                    <button class="control-btn" id="btn-pause-play" onclick="controls.togglePause()" data-label="إيقاف/تشغيل">
+                        <i data-lucide="pause" class="w-5 h-5"></i>
+                    </button>
+                    <button class="control-btn" id="btn-loop" onclick="controls.toggleInfinite()" data-label="لانهائي">
+                        <i data-lucide="infinity" class="w-5 h-5"></i>
+                    </button>
+                    <div class="flex flex-col items-center gap-1 border-t pt-2">
+                        <button class="control-btn" onclick="controls.faster()"><i data-lucide="chevron-up" class="w-5 h-5"></i></button>
+                        <div id="speed-val" class="text-[10px] font-bold text-[#006b3d]">0.25</div>
+                        <button class="control-btn" onclick="controls.slower()"><i data-lucide="chevron-down" class="w-5 h-5"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-4 left-0 right-0 flex flex-col justify-center items-center gap-3 z-10 slider-nav-dots">
+            <div class="flex justify-center items-center gap-3">
+                <button onclick="goToSlide(0)" class="dot-indicator w-3 h-3 rounded-full bg-black/20 transition-all"></button>
+                <button onclick="goToSlide(1)" class="dot-indicator w-3 h-3 rounded-full bg-black/20 transition-all"></button>
+                <button onclick="goToSlide(2)" class="dot-indicator w-3 h-3 rounded-full bg-black/20 transition-all"></button>
+                <button onclick="goToSlide(3)" class="dot-indicator w-3 h-3 rounded-full bg-black/20 transition-all"></button>
+            </div>
+            <button onclick="goToSlide(4)" class="dot-indicator-btn px-6 py-2 rounded-full bg-black/10 text-[11px] font-extrabold transition-all border border-transparent shadow-sm">
+                الفرص الاستثمارية
+            </button>
+        </div>
+    </div>
+
+    <!-- القسم السفلي -->
+    <div id="bottomSection" class="h-1/2 bg-white flex flex-col items-center justify-center relative shadow-xl z-20">
         <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-[#006b3d] via-[#c89d3c] to-[#006b3d]"></div>
-        
         <div class="container mx-auto px-4 h-full flex items-center">
-            <div class="flex flex-col md:flex-row w-full gap-6 items-stretch justify-between">
-                
-                <!-- الجزء الأيمن: آلية التقديم (محدث وموضح) -->
-                <div class="flex-1 flex flex-col justify-center">
-                    <h2 class="text-xl font-bold text-[#006b3d] mb-4 flex items-center gap-2">
-                        <i data-lucide="list-checks" class="w-5 h-5 text-[#c89d3c]"></i>
-                        آلية التقديم والخطوات
-                    </h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- الخطوة 1 -->
-                        <div class="step-card group">
-                            <div class="step-icon-box group-hover:bg-[#006b3d] group-hover:text-white transition-colors">
-                                <span class="font-bold text-lg">1</span>
+            <div class="showcase-container">
+                <div class="steps-viewer group">
+                    <div id="viewerTrack" class="viewer-track"></div>
+                    <button class="step-nav-btn btn-next" onclick="nextStep()"><i data-lucide="chevron-left"></i></button>
+                    <button class="step-nav-btn btn-prev" onclick="prevStep()"><i data-lucide="chevron-right"></i></button>
+                    <button onclick="controls.toggleFullScreen('bottom-only')" class="maximize-step-btn absolute top-4 left-4 bg-white/90 backdrop-blur p-2.5 rounded-xl shadow-lg z-50 border border-gray-200">
+                        <i data-lucide="maximize-2" class="w-5 h-5 text-[#006b3d]"></i>
+                    </button>
+                </div>
+                <div class="steps-content-panel">
+                    <div class="flex items-start gap-4">
+                        <div id="indicatorBar" class="flex flex-col gap-2"></div>
+                        <div class="flex-1">
+                            <h2 class="text-2xl font-bold text-[#006b3d] mb-4 flex items-center gap-2">
+                                <i data-lucide="shield-check" class="w-6 h-6 text-[#c89d3c]"></i> آلية التقديم
+                            </h2>
+                            <div id="stepDescription" class="step-text-card">
+                                <h4 id="stepTitle" class="font-bold text-gray-800 text-lg mb-2">اسم الخطوة</h4>
+                                <p id="stepDesc" class="text-gray-600 leading-relaxed text-sm">وصف الخطوة...</p>
                             </div>
-                            <div>
-                                <h4 class="font-bold text-gray-800 text-sm">الدخول والاطلاع</h4>
-                                <p class="text-xs text-gray-500 mt-0.5">تصفح الفرص عبر منصة تطوير</p>
-                            </div>
-                        </div>
-                        <!-- الخطوة 2 -->
-                        <div class="step-card group">
-                            <div class="step-icon-box group-hover:bg-[#006b3d] group-hover:text-white transition-colors">
-                                <span class="font-bold text-lg">2</span>
-                            </div>
-                            <div>
-                                <h4 class="font-bold text-gray-800 text-sm">التقديم الإلكتروني</h4>
-                                <p class="text-xs text-gray-500 mt-0.5">رفع المستندات والبيانات</p>
-                            </div>
-                        </div>
-                        <!-- الخطوة 3 -->
-                        <div class="step-card group">
-                            <div class="step-icon-box group-hover:bg-[#006b3d] group-hover:text-white transition-colors">
-                                <span class="font-bold text-lg">3</span>
-                            </div>
-                            <div>
-                                <h4 class="font-bold text-gray-800 text-sm">الدراسة والتحليل</h4>
-                                <p class="text-xs text-gray-500 mt-0.5">تقييم العروض فنياً ومالياً</p>
-                            </div>
-                        </div>
-                        <!-- الخطوة 4 -->
-                        <div class="step-card group">
-                            <div class="step-icon-box group-hover:bg-[#006b3d] group-hover:text-white transition-colors">
-                                <span class="font-bold text-lg">4</span>
-                            </div>
-                            <div>
-                                <h4 class="font-bold text-gray-800 text-sm">الإسناد والتعاقد</h4>
-                                <p class="text-xs text-gray-500 mt-0.5">إسناد الفرص للمستحقين</p>
+                            <div class="mt-8 flex items-center gap-6">
+                                <div class="flex-1">
+                                    <p class="text-xs text-gray-400 font-bold mb-3 uppercase tracking-wider">ابدأ استثمارك الآن</p>
+                                    <a href="https://www.tatwir.om" target="_blank" class="bg-[#c89d3c] text-white text-sm font-bold py-3 px-8 rounded-full inline-flex items-center gap-2 shadow-lg hover:scale-105 transition-all">
+                                        دخول المنصة <i data-lucide="external-link" class="w-4 h-4"></i>
+                                    </a>
+                                </div>
+                                <div class="bg-gray-50 p-2 rounded-xl border border-gray-100 barcode-glow flex flex-col items-center">
+                                    <div id="qrcode"></div>
+                                    <span class="text-[9px] font-bold text-[#006b3d] mt-1">مسح للتقديم</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
-                <!-- خط فاصل -->
-                <div class="hidden md:block w-px bg-gray-200 mx-2 self-stretch"></div>
-
-                <!-- الجزء الأيسر -->
-                <div class="flex-shrink-0 flex items-center gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-100 shadow-inner">
-                    <div class="text-center md:text-right">
-                        <h1 class="text-2xl font-extrabold text-[#006b3d] mb-2 leading-tight">
-                            ابدأ استثمارك اليوم
-                        </h1>
-                        <p class="text-sm text-gray-600 mb-4 font-medium">
-                            التقديم متاح إلكترونيًا عبر منصة تطوير
-                        </p>
-                        <a href="https://www.tatwir.om" target="_blank" class="btn-gold text-white text-sm font-bold py-2.5 px-6 rounded-full inline-flex items-center gap-2 shadow-md hover:shadow-lg">
-                            دخول منصة تطوير
-                            <i data-lucide="external-link" class="w-4 h-4"></i>
-                        </a>
-                    </div>
-
-                    <!-- الباركود مع وميض -->
-                    <div class="flex flex-col items-center bg-white p-3 rounded-xl border border-gray-200 barcode-glow">
-                        <div id="qrcode" class="mb-2"></div>
-                        <span class="text-[10px] font-bold text-[#006b3d]">امسح للتقديم المباشر</span>
-                    </div>
-                </div>
-
             </div>
         </div>
     </div>
 
     <script>
-        lucide.createIcons();
-        new QRCode(document.getElementById("qrcode"), { text: "https://www.tatwir.om", width: 100, height: 100, colorDark : "#006b3d", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
+        const siteContent = {
+            hero: {
+                title: "الفرص الاستثمارية في قطاعات الأمن الغذائي",
+                subtitle: "محافظة شمال الشرقية – سلطنة عُمان",
+                description: "نحو استثمار مستدام يعزز الأمن الغذائي وفرص واعدة في جميع ولايات محافظة شمال الشرقية",
+                backgroundImage: "linear-gradient(rgba(0,0,0,0.2), rgba(0,0,0,0.4)), url('1.jpeg')"
+            },
+            intro: {
+                title: "مقدمة",
+                text: "طرح فرص استثمارية متنوعة في مشاريع الأمن الغذائي بمحافظة شمال الشرقية، بهدف تعزيز الإنتاج المحلي وتحقيق الاستدامة الاقتصادية، وذلك عبر <strong>منصة تطوير</strong>."
+            },
+            sectors: [
+                { title: "مشاريع زراعية", sub: "لمحاصيل متنوعة", img: "زراعة.jpeg", color: "green" },
+                { title: "الإنتاج الحيواني", sub: "لإنتاج اللحوم والحليب", img: "حيوانات.jpeg", color: "amber" },
+                { title: "الثروة السمكية", sub: "مشاريع الأمن الغذائي", img: "سمكي.jpeg", color: "blue" },
+                { title: "التصنيع والتخزين", sub: "التعبئة والتخزين المبرد", img: "تصنيع.jpeg", color: "purple" }
+            ],
+            supervisors: [
+                { name: "", img: "وزارة .png" },
+                { name: "", img: "m-logo.webp" }
+            ],
+            steps: [
+                { title: "الدخول للمنصة", desc: "قم بالدخول إلى موقع منصة تطوير الرسمي tatwir.om" },
+                { title: "البحث عن الفرصة", desc: "استخدم الفلاتر للوصول لفرص محافظة شمال الشرقية" },
+                { title: "تحميل الملفات", desc: "اطلع على كراسة الشروط والمواصفات الفنية للمشروع" },
+                { title: "تجهيز المستندات", desc: "قم بتحضير دراسة الجدوى والوثائق المالية المطلوبة" },
+                { title: "تقديم العرض", desc: "ارفع مستنداتك إلكترونياً عبر الخانة المخصصة لكل فرصة" },
+                { title: "دفع الرسوم", desc: "سدد رسوم التقديم المقررة لضمان جدية الطلب" },
+                { title: "المراجعة الفنية", desc: "ستقوم اللجان المختصة بمراجعة طلبك وتقييمه فنياً" },
+                { title: "الإسناد والتعاقد", desc: "في حال قبول عرضك سيتم إسناد الفرصة وبدء التعاقد" }
+            ],
+            opportunities: []
+        };
 
-        // --- منطق السلايدر ---
-        const track = document.getElementById('sliderTrack');
-        const dots = document.querySelectorAll('.dot-indicator');
-        const slides = document.querySelectorAll('.slide');
-        const sliderContainer = document.getElementById('sliderContainer');
-        let currentSlide = 0;
-        const totalSlides = 4;
-        let slideInterval;
-        const SLIDE_DURATION = 8000;
+        let currentStepIdx = 0;
+        let stepAutoInterval;
 
-        function activateSlideAnimations(slide) {
-            const fadeTargets = slide.querySelectorAll('.fade-target');
-            fadeTargets.forEach(el => {
-                el.classList.remove('visible');
-                void el.offsetWidth;
-                setTimeout(() => {
-                    el.classList.add('visible');
-                }, 100);
-            });
+        function initStepShowcase() {
+            const viewer = document.getElementById('viewerTrack');
+            const indicators = document.getElementById('indicatorBar');
+            viewer.innerHTML = Array.from({length: 8}, (_, i) => `<img src="photo/${i+1}.png" class="step-image-item" onerror="this.src='https://via.placeholder.com/800x500?text=Step+${i+1}'">`).join('');
+            indicators.innerHTML = Array.from({length: 8}, (_, i) => `<div class="indicator-dot" onclick="goToStep(${i})"></div>`).join('');
+            updateStepView();
+            startStepAuto();
         }
 
-        function updateSlider() {
-            track.style.transform = `translateX(${currentSlide * 100}%)`;
+        function startStepAuto() {
+            clearInterval(stepAutoInterval);
+            stepAutoInterval = setInterval(nextStep, 5000);
+        }
+
+        function nextStep() {
+            currentStepIdx = (currentStepIdx + 1) % 8;
+            updateStepView();
+        }
+
+        function prevStep() {
+            currentStepIdx = (currentStepIdx - 1 + 8) % 8;
+            updateStepView();
+        }
+
+        function goToStep(idx) {
+            currentStepIdx = idx;
+            updateStepView();
+            startStepAuto();
+        }
+
+        function updateStepView() {
+            const track = document.getElementById('viewerTrack');
+            const dots = document.querySelectorAll('#indicatorBar .indicator-dot');
+            const title = document.getElementById('stepTitle');
+            const desc = document.getElementById('stepDesc');
+
+            if (track) track.style.transform = `translateX(${currentStepIdx * 100}%)`;
+            dots.forEach((dot, i) => dot.classList.toggle('active', i === currentStepIdx));
             
-            slides.forEach((slide, index) => {
-                if (index === currentSlide) {
-                    slide.classList.add('active');
-                    activateSlideAnimations(slide);
-                } else {
-                    slide.classList.remove('active');
+            if (title) title.innerText = siteContent.steps[currentStepIdx].title;
+            if (desc) desc.innerText = siteContent.steps[currentStepIdx].desc;
+        }
+
+        const controls = {
+            togglePause: function() { scrollEngine.isPaused = !scrollEngine.isPaused; scrollEngine.updateUI(); },
+            toggleInfinite: function() { scrollEngine.isLooping = !scrollEngine.isLooping; scrollEngine.updateUI(); },
+            faster: function() { scrollEngine.speed = Math.min(scrollEngine.speed + 0.25, 2.0); scrollEngine.updateUI(); },
+            slower: function() { scrollEngine.speed = Math.max(scrollEngine.speed - 0.25, 0.25); scrollEngine.updateUI(); },
+            reset: function() { scrollEngine.reset(); scrollEngine.updateUI(); },
+            refreshFromDB: function() { location.reload(); },
+            toggleFullScreen: function(mode) {
+                const body = document.body;
+                body.classList.remove('full-screen-top', 'full-screen-bottom', 'full-screen-opps', 'full-screen-page');
+                
+                if (mode === 'full-page') {
+                    if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); body.classList.add('full-screen-page'); }
+                    else { document.exitFullscreen(); }
+                } else if (mode === 'top-only') {
+                    body.classList.add('full-screen-top');
+                    if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => console.log(err)); }
+                } else if (mode === 'opps-only') {
+                    body.classList.add('full-screen-opps');
+                    currentSlide = 4; updateSlider();
+                    scrollEngine.isActive = true; scrollEngine.isLooping = true;
+                    if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => console.log(err)); }
+                } else if (mode === 'bottom-only') {
+                    body.classList.add('full-screen-bottom');
+                    if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => console.log(err)); }
                 }
-            });
-
-            dots.forEach((dot, index) => {
-                const isDarkSlide = (index === 0);
-                if (index === currentSlide) {
-                    dot.className = `w-3 h-3 rounded-full transition-colors dot-indicator scale-125 ${isDarkSlide ? 'bg-[#c89d3c]' : 'bg-[#006b3d]'}`;
-                } else {
-                    dot.className = `w-3 h-3 rounded-full transition-colors dot-indicator ${isDarkSlide ? 'bg-white/30 hover:bg-white/60' : 'bg-black/20 hover:bg-black/50'}`;
-                }
-            });
-        }
-
-        function nextSlide() {
-            currentSlide = (currentSlide + 1) % totalSlides;
-            updateSlider();
-        }
-
-        function prevSlide() {
-            currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
-            updateSlider();
-        }
-
-        function resetInterval() {
-            clearInterval(slideInterval);
-            slideInterval = setInterval(nextSlide, SLIDE_DURATION);
-        }
-
-        function goToSlide(index) {
-            currentSlide = index;
-            updateSlider();
-            resetInterval();
-        }
-
-        let touchStartX = 0;
-        let touchEndX = 0;
-        sliderContainer.addEventListener('touchstart', (e) => { touchStartX = e.changedTouches[0].screenX; clearInterval(slideInterval); }, { passive: true });
-        sliderContainer.addEventListener('touchend', (e) => {
-            touchEndX = e.changedTouches[0].screenX;
-            if (Math.abs(touchEndX - touchStartX) > 50) {
-                (touchEndX - touchStartX > 0) ? nextSlide() : prevSlide();
+                const options = document.getElementById('fsOptions');
+                if (options) options.style.display = 'none';
+            },
+            exitFullScreen: function() {
+                document.body.classList.remove('full-screen-top', 'full-screen-bottom', 'full-screen-opps', 'full-screen-page');
+                if (document.fullscreenElement) { document.exitFullscreen(); }
             }
+        };
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                document.body.classList.remove('full-screen-top', 'full-screen-bottom', 'full-screen-opps', 'full-screen-page');
+            }
+        });
+
+        function toggleFSMenu() {
+            const menu = document.getElementById('fsOptions');
+            if (menu) menu.style.display = (menu.style.display === 'flex' ? 'none' : 'flex');
+        }
+
+        const scrollEngine = {
+            container: null, scrollY: 0, speed: 0.25, direction: 1, isActive: false, isPaused: false,
+            isLooping: false, animationId: null,
+            init: function() { this.container = document.getElementById('scrolling-content'); },
+            start: function() { if (this.isActive) return; this.isActive = true; this.loop(); },
+            stop: function() { this.isActive = false; cancelAnimationFrame(this.animationId); },
+            reset: function() { this.scrollY = 0; if(this.container) this.container.style.transform = `translateY(0px)`; },
+            loop: function() {
+                if (!this.isActive || this.isPaused || !this.container) { this.animationId = requestAnimationFrame(() => this.loop()); return; }
+                const originalList = document.getElementById('original-list');
+                if (originalList) {
+                    const originalHeight = originalList.offsetHeight;
+                    this.scrollY += this.speed * this.direction;
+                    if (this.isLooping) { if (this.scrollY >= originalHeight) this.scrollY = 0; }
+                    else if (this.scrollY > originalHeight) { this.stop(); this.reset(); goToSlide(0); return; }
+                    this.container.style.transform = `translateY(-${this.scrollY}px)`;
+                }
+                this.animationId = requestAnimationFrame(() => this.loop());
+            },
+            updateUI: function() {
+                document.getElementById('btn-loop')?.classList.toggle('btn-active', this.isLooping);
+                document.getElementById('btn-pause-play')?.classList.toggle('btn-active', this.isPaused);
+                const speedVal = document.getElementById('speed-val');
+                if (speedVal) speedVal.innerText = this.speed.toFixed(2);
+                lucide.createIcons();
+            }
+        };
+
+        let currentSlide = 0;
+        function updateSlider() {
+            const track = document.getElementById('sliderTrack');
+            const dots = document.querySelectorAll('.slider-nav-dots .dot-indicator');
+            const oppBtn = document.querySelector('.dot-indicator-btn');
+            const slides = document.querySelectorAll('.slide');
+            if (track) track.style.transform = `translateX(${currentSlide * 100}%)`;
+            slides.forEach((slide, i) => { slide.classList.toggle('active', i === currentSlide); });
+            if (currentSlide === 4) { clearInterval(slideInterval); scrollEngine.start(); }
+            else { scrollEngine.stop(); resetInterval(); }
+            dots.forEach((dot, i) => {
+                if (i === currentSlide) { dot.style.backgroundColor = '#006b3d'; dot.style.transform = 'scale(1.3)'; }
+                else { dot.style.backgroundColor = 'rgba(0,0,0,0.15)'; dot.style.transform = 'scale(1)'; }
+            });
+            if (oppBtn) {
+                if (currentSlide === 4) { oppBtn.style.backgroundColor = '#c89d3c'; oppBtn.style.color = 'white'; oppBtn.style.transform = 'scale(1.05)'; oppBtn.style.borderColor = '#c89d3c'; }
+                else { oppBtn.style.backgroundColor = 'rgba(0,0,0,0.05)'; oppBtn.style.color = '#666'; oppBtn.style.transform = 'scale(1)'; oppBtn.style.borderColor = 'transparent'; }
+            }
+        }
+
+        function nextSlide() { currentSlide = (currentSlide + 1) % 5; updateSlider(); }
+        function goToSlide(idx) { currentSlide = idx; updateSlider(); }
+        let slideInterval;
+        function resetInterval() { clearInterval(slideInterval); slideInterval = setInterval(nextSlide, 8000); }
+
+        async function fetchOpportunities() {
+            const supabaseUrl = 'https://atgmcudgsnzgafwcqmvn.supabase.co';
+            const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0Z21jdWRnc256Z2Fmd2NxbXZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwMzk4NzQsImV4cCI6MjA4MzYxNTg3NH0.-d8JH4S7v2Y7UB_LKJb7WPFnOYyTBJKMSxR957YFuTg';
+            const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+            const { data } = await supabase.from('opportunities').select('*');
+            if (data) {
+                siteContent.opportunities = data;
+                const createItems = () => data.map((opp, i) => {
+                    const statusClass = opp.status?.toLowerCase().includes('bidding') ? 'status-bidding' : 'status-awarding';
+                    return `
+                    <div class="opp-card">
+                        <div class="opp-number-badge">${i + 1}</div>
+                        <div class="flex gap-6">
+                            <div class="flex flex-col items-center gap-3 shrink-0">
+                                <div class="qr-placeholder bg-gray-50 p-2 rounded-xl shadow-inner border border-gray-100" data-link="${opp.link}"></div>
+                                <span class="status-badge ${statusClass}">${opp.status}</span>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h3 class="font-bold text-gray-800 text-lg leading-tight">${opp.description}</h3>
+                                    <span class="text-[10px] bg-[#006b3d]/10 text-[#006b3d] px-3 py-1 rounded-full font-bold">${opp.type}</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-y-2 gap-x-4">
+                                    <div class="flex items-center gap-2 text-[11px] text-gray-600"><i data-lucide="map-pin" class="w-3.5 h-3.5 text-[#c89d3c]"></i><span>${opp.location}</span></div>
+                                    <div class="flex items-center gap-2 text-[11px] text-gray-600"><i data-lucide="maximize" class="w-3.5 h-3.5 text-[#c89d3c]"></i><span>${opp.area}</span></div>
+                                    <div class="flex items-center gap-2 text-[11px] text-gray-600"><i data-lucide="calendar" class="w-3.5 h-3.5 text-blue-500"></i><span>يبدأ: ${opp.start_date}</span></div>
+                                    <div class="flex items-center gap-2 text-[11px] text-gray-600"><i data-lucide="calendar-off" class="w-3.5 h-3.5 text-red-400"></i><span>ينتهي: ${opp.end_date}</span></div>
+                                    <div class="flex items-center gap-2 text-[11px] text-gray-600"><i data-lucide="clock-3" class="w-3.5 h-3.5 text-amber-500"></i><span>فترة السماح: ${opp.grace_period}</span></div>
+                                    <div class="flex items-center gap-2 text-[11px] text-gray-600"><i data-lucide="tag" class="w-3.5 h-3.5 text-purple-400"></i><span>النوع: ${opp.type}</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+                const scrollingContent = document.getElementById('scrolling-content');
+                if (scrollingContent) {
+                    scrollingContent.innerHTML = `<div id="original-list">${createItems()}</div><div id="clone-list">${createItems()}</div>`;
+                    setTimeout(() => {
+                        const placeholders = scrollingContent.querySelectorAll('.qr-placeholder');
+                        placeholders.forEach(el => { new QRCode(el, { text: el.dataset.link || "https://www.tatwir.om", width: 90, height: 90 }); });
+                        lucide.createIcons();
+                    }, 150);
+                }
+                const oppCount = document.getElementById('opp-count-display');
+                if (oppCount) oppCount.innerText = data.length;
+            }
+        }
+
+        window.onload = () => {
+            const hero = document.getElementById('slide-hero');
+            if (hero) {
+                hero.querySelector('.slide-bg-container').style.backgroundImage = siteContent.hero.backgroundImage;
+                hero.querySelector('.content-wrapper').innerHTML = `<h2 class="text-4xl md:text-6xl font-black text-white drop-shadow-lg">${siteContent.hero.title}<span class="text-[#c89d3c] block mt-4 text-3xl md:text-5xl">${siteContent.hero.subtitle}</span></h2><p class="text-xl md:text-2xl font-bold border-t-2 border-[#c89d3c] pt-8 mt-6 text-white max-w-4xl mx-auto">${siteContent.hero.description}</p>`;
+            }
+            const intro = document.getElementById('slide-intro');
+            if (intro) {
+                intro.querySelector('.content-wrapper').innerHTML = `<h2 class="text-3xl font-bold text-[#006b3d] mb-6 flex items-center justify-center gap-3"><i data-lucide="info" class="w-8 h-8 text-[#c89d3c]"></i> المقدمة</h2><p class="text-xl leading-relaxed text-gray-700 font-medium">${siteContent.intro.text}</p>`;
+            }
+            const sectors = document.getElementById('sectors-grid');
+            if (sectors) {
+                sectors.innerHTML = siteContent.sectors.map(sec => `<div class="bg-white p-6 rounded-2xl shadow border-b-4 border-${sec.color}-500"><div class="w-16 h-16 mx-auto mb-4 overflow-hidden rounded-full"><img src="${sec.img}" class="w-full h-full object-cover"></div><h3 class="font-bold text-sm">${sec.title}</h3></div>`).join('');
+            }
+            const supervisors = document.getElementById('supervisors-container');
+            if (supervisors) {
+                supervisors.innerHTML = siteContent.supervisors.map(sup => `
+                    <div class="bg-gray-50 p-6 md:p-10 rounded-3xl border border-gray-100 flex-1 flex flex-col items-center justify-center shadow-sm hover:shadow-md transition-all hover:scale-105 duration-300">
+                        <img src="${sup.img}" class="w-44 h-44 md:w-60 md:h-60 object-contain drop-shadow-lg" alt="شعار الجهة">
+                    </div>`).join('');
+            }
+            const qrCodeEl = document.getElementById("qrcode");
+            if (qrCodeEl) { new QRCode(qrCodeEl, { text: "https://www.tatwir.om", width: 85, height: 85, colorDark: "#006b3d" }); }
+            initStepShowcase();
+            scrollEngine.init();
+            fetchOpportunities();
             resetInterval();
-        }, { passive: true });
-
-        slideInterval = setInterval(nextSlide, SLIDE_DURATION);
-        setTimeout(() => updateSlider(), 100);
-
+            updateSlider();
+            lucide.createIcons();
+        };
     </script>
 </body>
 </html>

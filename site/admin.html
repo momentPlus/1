@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>نظام إدارة الفرص - تفاصيل شاملة</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background: #f8fafc; color: #1e293b; }
+        .card-detailed { background: white; border: 1px solid #e2e8f0; border-radius: 24px; transition: all 0.3s ease; position: relative; }
+        .card-detailed:hover { transform: translateY(-4px); box-shadow: 0 15px 30px -10px rgba(0,0,0,0.05); }
+        .badge-index { position: absolute; top: -10px; right: -10px; width: 30px; height: 30px; background: #0f172a; color: white; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 12px; font-weight: 800; border: 3px solid #f8fafc; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #f1f5f9; }
+        .detail-row:last-child { border-bottom: none; }
+        .label-text { font-size: 11px; color: #64748b; font-weight: 700; }
+        .value-text { font-size: 13px; font-weight: 600; color: #334155; }
+        .input-field { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 14px; outline: none; }
+        .modal { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(6px); align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="pb-20">
+
+    <header class="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200 shadow-sm">
+        <div class="container mx-auto px-4 h-24 flex justify-between items-center">
+            <div class="flex flex-col">
+                <h1 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <i data-lucide="layers" class="text-emerald-600"></i>
+                    إدارة الاستثمارات
+                </h1>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="text-xs font-bold text-slate-500">إجمالي الفرص:</span>
+                    <span id="total-badge" class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-md text-xs font-black">0</span>
+                </div>
+            </div>
+            <button onclick="openModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl font-bold flex items-center gap-2 transition-all shadow-md">
+                <i data-lucide="plus-circle" class="w-5 h-5"></i> إضافة فرصة
+            </button>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 mt-10">
+        <div id="opps-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div class="col-span-full text-center py-20 text-slate-400 font-bold animate-pulse">جاري تحميل كامل البيانات...</div>
+        </div>
+    </main>
+
+    <div id="oppModal" class="modal p-4">
+        <div class="bg-white w-full max-w-2xl rounded-[32px] p-6 sm:p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-8 pb-4 border-b">
+                <h2 id="modalTitle" class="text-2xl font-black text-slate-800">إضافة فرصة جديدة</h2>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="x"></i></button>
+            </div>
+
+            <form id="opportunityForm" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <input type="hidden" id="oppId">
+                <div class="md:col-span-2"><label class="text-xs font-bold text-slate-500 mb-1 block">وصف الفرصة</label><textarea id="description" class="input-field" rows="3" required></textarea></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">الموقع</label><input type="text" id="location" class="input-field" required></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">المساحة</label><input type="text" id="area" class="input-field" required></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">الحالة</label><select id="status" class="input-field"><option value="Bidding">مطروحة</option><option value="Awarding">قيد الترسية</option><option value="Closed">مغلقة</option></select></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">النوع</label><input type="text" id="type" class="input-field" required></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">تاريخ البدء</label><input type="date" id="start_date" class="input-field" required></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">تاريخ الانتهاء</label><input type="date" id="end_date" class="input-field" required></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">فترة السماح</label><input type="text" id="grace_period" class="input-field"></div>
+                <div><label class="text-xs font-bold text-slate-500 mb-1 block">رابط الفرصة</label><input type="url" id="link" class="input-field" required></div>
+                <div class="md:col-span-2 flex gap-4 mt-4">
+                    <button type="submit" class="flex-1 bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg">حفظ البيانات</button>
+                    <button type="button" onclick="closeModal()" class="flex-1 bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://atgmcudgsnzgafwcqmvn.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0Z21jdWRnc256Z2Fmd2NxbXZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwMzk4NzQsImV4cCI6MjA4MzYxNTg3NH0.-d8JH4S7v2Y7UB_LKJb7WPFnOYyTBJKMSxR957YFuTg';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        let currentOpps = [];
+
+        async function init() {
+            const { data, error } = await _supabase.from('opportunities').select('*').order('id', { ascending: false });
+            if (error) return;
+            currentOpps = data;
+            document.getElementById('total-badge').innerText = data.length;
+            render();
+        }
+
+        function render() {
+            const grid = document.getElementById('opps-grid');
+            grid.innerHTML = currentOpps.map((opp, index) => `
+                <div class="card-detailed p-6 flex flex-col">
+                    <div class="badge-index">${currentOpps.length - index}</div>
+                    
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="bg-blue-50 text-blue-600 text-[10px] font-black px-3 py-1 rounded-lg border border-blue-100 uppercase">${opp.type}</span>
+                        <div class="flex gap-2">
+                            <button onclick="fillForm(${opp.id})" class="text-slate-400 hover:text-emerald-600"><i data-lucide="edit" class="w-4 h-4"></i></button>
+                            <button onclick="deleteOpp(${opp.id})" class="text-slate-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                    </div>
+
+                    <h3 class="font-bold text-slate-800 text-lg mb-6 leading-tight h-14 overflow-hidden">${opp.description}</h3>
+
+                    <div class="bg-slate-50 rounded-2xl p-4 space-y-1 mb-6 border border-slate-100">
+                        <div class="detail-row"><span class="label-text">الموقع:</span><span class="value-text">${opp.location}</span></div>
+                        <div class="detail-row"><span class="label-text">المساحة:</span><span class="value-text">${opp.area}</span></div>
+                        <div class="detail-row"><span class="label-text">تاريخ البدء:</span><span class="value-text text-emerald-600">${opp.start_date}</span></div>
+                        <div class="detail-row"><span class="label-text">تاريخ الانتهاء:</span><span class="value-text text-red-500">${opp.end_date}</span></div>
+                        <div class="detail-row"><span class="label-text">فترة السماح:</span><span class="value-text">${opp.grace_period || '---'}</span></div>
+                        <div class="detail-row"><span class="label-text">الحالة:</span><span class="value-text font-bold">${opp.status}</span></div>
+                    </div>
+
+                    <a href="${opp.link}" target="_blank" class="mt-auto w-full py-3 bg-slate-900 text-white rounded-xl text-center text-xs font-bold hover:bg-emerald-600 transition-all shadow-lg flex items-center justify-center gap-2">
+                        زيارة رابط الفرصة <i data-lucide="external-link" class="w-3 h-3"></i>
+                    </a>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        // Functions for Modal and DB
+        function fillForm(id) {
+            const opp = currentOpps.find(o => o.id === id);
+            document.getElementById('oppId').value = opp.id;
+            document.getElementById('description').value = opp.description;
+            document.getElementById('location').value = opp.location;
+            document.getElementById('area').value = opp.area;
+            document.getElementById('status').value = opp.status;
+            document.getElementById('type').value = opp.type;
+            document.getElementById('start_date').value = opp.start_date;
+            document.getElementById('end_date').value = opp.end_date;
+            document.getElementById('grace_period').value = opp.grace_period;
+            document.getElementById('link').value = opp.link;
+            document.getElementById('modalTitle').innerText = "تعديل بيانات الفرصة";
+            openModal();
+        }
+
+        document.getElementById('opportunityForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('oppId').value;
+            const data = {
+                description: document.getElementById('description').value,
+                location: document.getElementById('location').value,
+                area: document.getElementById('area').value,
+                status: document.getElementById('status').value,
+                type: document.getElementById('type').value,
+                start_date: document.getElementById('start_date').value,
+                end_date: document.getElementById('end_date').value,
+                grace_period: document.getElementById('grace_period').value,
+                link: document.getElementById('link').value
+            };
+            if(id) await _supabase.from('opportunities').update(data).eq('id', id);
+            else await _supabase.from('opportunities').insert([data]);
+            closeModal(); init();
+        };
+
+        async function deleteOpp(id) { if(confirm('حذف هذه الفرصة؟')) { await _supabase.from('opportunities').delete().eq('id', id); init(); } }
+        function openModal() { document.getElementById('oppModal').classList.add('active'); }
+        function closeModal() { document.getElementById('oppModal').classList.remove('active'); document.getElementById('opportunityForm').reset(); document.getElementById('oppId').value = ''; }
+        window.onload = init;
+    </script>
+</body>
+</html>
